@@ -26,36 +26,13 @@ import requests
 import torch.utils.data as data
 
 
-def download_file_from_google_drive(id, destination):
-    URL = "https://docs.google.com/uc?export=download"
-
-    session = requests.Session()
-
-    response = session.get(URL, params = { 'id' : id }, stream = True)
-    token = get_confirm_token(response)
-
-    if token:
-        params = { 'id' : id, 'confirm' : token }
-        response = session.get(URL, params = params, stream = True)
-
-    save_response_content(response, destination)
-
-
-def get_confirm_token(response):
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            return value
-
-    return None
-
-def save_response_content(response, destination):
+def download_file_from_url(url, destination):
     CHUNK_SIZE = 32768
-
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(CHUNK_SIZE):
-            if chunk: # filter out keep-alive new chunks
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        with open(destination, 'wb') as f:
+            for chunk in r.iter_content(CHUNK_SIZE):
                 f.write(chunk)
-
 
 class CUB200(data.Dataset):
     """CUB200 dataset.
@@ -96,13 +73,13 @@ class CUB200(data.Dataset):
         self._download()
         self._extract()
 
+
     def _download(self):
         """Download and uncompress the tar.gz file from a given URL.
 
         Args:
             url, str: URL to be downloaded.
         """
-        import six.moves
         import tarfile
 
         raw_path = os.path.join(self._root, 'raw')
@@ -113,8 +90,12 @@ class CUB200(data.Dataset):
             os.makedirs(processed_path, exist_ok=True)
 
         # Downloads file.
+        url = "https://s3.amazonaws.com/fast-ai-imageclas/CUB_200_2011.tgz"
         fpath = os.path.join(self._root, 'raw/CUB_200_2011.tgz')
-        download_file_from_google_drive(id='1hbzc_P1FuxMkcabkgn9ZKinBwW683j45', destination=fpath)
+        
+        print(f"Downloading from {url}...")
+        download_file_from_url(url=url, destination=fpath)
+        print("Download complete.")
 
         # Extract file.
         cwd = os.getcwd()
@@ -150,8 +131,8 @@ class CUB200(data.Dataset):
             os.makedirs(folder, exist_ok=True)
             shutil.move(src_image_path, target_path)
             print('(%s, %s): Move from %s to %s' % (id2name[id_, 1], label, src_image_path, target_path))
-
-dataset_path = '~/dataset/cub200'
+            
+dataset_path = '/igd/a1/home/nath/github/tinyml-master/tinytl/dataset/cub200'
 dataset_path = os.path.expanduser(dataset_path)
 
 train = CUB200(dataset_path, _train=True, download=True, transform=None)
